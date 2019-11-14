@@ -1,0 +1,104 @@
+---
+title: "Untitled"
+author: "Yuqi Miao"
+date: "11/13/2019"
+output: html_document
+---
+
+```{r,include=FALSE}
+knitr::opts_chunk$set(
+  echo = FALSE,
+  message = FALSE)
+
+options(
+  ggplot2.continuous.colour = "viridis",
+  ggplot2.continuous.fill = "viridis")
+
+scale_colour_discrete = scale_colour_viridis_d
+scale_fill_discrete = scale_fill_viridis_d
+
+theme_set(theme_minimal() + theme(legend.position = "bottom"))
+```
+
+```{r}
+library(tidyverse)
+library(readxl)
+library(arsenal)
+library(modelr)
+library(broom)
+```
+
+
+# Problem 2
+
+## a) Fit a regression model for the nonhuman data 
+
+```{r}
+## read data
+brain = read_excel("data/Brain.xlsx") %>% 
+    janitor::clean_names() 
+
+## fit a model to non_human species
+non_human_reg <- brain %>% 
+    filter(species != "Homo sapiens") %>% 
+    lm(glia_neuron_ratio~ln_brain_mass,data = .)
+```
+
+
+## b) Predict human brain mass using the model
+
+```{r}
+summary(non_human_reg)
+anova(non_human_reg)
+broom::tidy(non_human_reg)
+brain %>% add_predictions(non_human_reg) %>% .[1,]
+
+```
+
+The relationship between glia-neuron ratio (denoted as $GR$) and brain mass (denoted as $BM$) is:
+
+
+$$GR=0.16370+0.18113\times\ln(BM)$$
+Thus using this relationship, the glia-neuron ratio of Homo sapiens should be:
+
+$$GR=0.16370+0.18113\times7.22=1.471$$
+
+## c) CI or PI?
+
+
+
+
+In this model, Homo sapiens species provides a new value for the model which beyond the original range of glia-neuron ratio, which means that in this way, the prediction interval is more plausible because the expected prediction can only capture the information of the given data, which is narrower than prediction interval.
+
+## d)
+
+```{r}
+newdata = brain %>% filter(species == "Homo sapiens")
+interval = as.tibble(
+    rbind(
+        predict(non_human_reg, newdata, interval="predict"),
+        predict(non_human_reg, newdata, interval="confidence")
+    )
+) %>% 
+    mutate(category = c("predict","confidence"))
+knitr::kable(interval)
+
+brain %>% filter(species!="Homo sapiens") %>% select(glia_neuron_ratio) %>% summary
+## Unfinish formula typing
+```
+
+As shown above, the prediction interval for Homo sapiens do not include the mean value of other species, thus, there are significant difference between the glia_neuron ratio of human and non_human groups
+$$se(\widehat{\beta_0}+\widehat{\beta_1}X_h)=\sqrt{MSE\left\{\frac1n+\frac{{(X_h-\overline X)}^2}{{\displaystyle\sum_{i=1}^n}{(X_i-\overline X)}^2}+1\right\}}=\sqrt{0.02885\times(\frac{1}{17}+\frac{(7.22-\overline{X})}{{\displaystyle\sum_{i=1}^n}{(X_i-\overline X)}^2})+1}$$
+
+## d)
+
+1. As shown in the plot, the $ln(BM)$ for Homo sapiens exceeds the range of non_human species which fitted the model. In this case, the prediction of human beings from this model may not defensible enough.
+
+
+# Problem 4
+
+```{r}
+hd <- read_excel("data/HeartDisease.csv")
+```
+
+
