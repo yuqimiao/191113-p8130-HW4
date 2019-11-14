@@ -5,7 +5,18 @@ date: "11/13/2019"
 output: html_document
 ---
 
-```{r,include=FALSE}
+
+
+```{r}
+library(tidyverse)
+library(readxl)
+library(arsenal)
+library(modelr)
+library(broom)
+library(viridis)
+```
+
+```{r,include = F}
 knitr::opts_chunk$set(
   echo = FALSE,
   message = FALSE)
@@ -18,16 +29,8 @@ scale_colour_discrete = scale_colour_viridis_d
 scale_fill_discrete = scale_fill_viridis_d
 
 theme_set(theme_minimal() + theme(legend.position = "bottom"))
-```
 
-```{r}
-library(tidyverse)
-library(readxl)
-library(arsenal)
-library(modelr)
-library(broom)
 ```
-
 
 # Problem 2
 
@@ -97,8 +100,156 @@ $$se(\widehat{\beta_0}+\widehat{\beta_1}X_h)=\sqrt{MSE\left\{\frac1n+\frac{{(X_h
 
 # Problem 4
 
+## a) Description
+
 ```{r}
-hd <- read_excel("data/HeartDisease.csv")
+hd <- read_csv("data/HeartDisease.csv")
+# Clean the output
+my_controls <- tableby.control(
+  total = T,
+  test = F,  
+  numeric.stats = c("meansd", "medianq1q3", "range"),
+  stats.labels = list(
+    meansd = "Mean (SD)",
+    medianq1q3 = "Median (Q1, Q3)",
+    range = "Min - Max"))
+
+# Descriptive table
+tab1 <- tableby( ~ totalcost+age+gender+interventions+drugs+ERvisits+complications+comorbidities+duration,
+                 data = hd, control = my_controls, total = FALSE)
+summary(tab1, title = "Descriptive statistics ", 
+        text = T,  digits = 1) %>% 
+  knitr::kable()
+
+# making plots to show relationships
+
+hd %>% 
+    pivot_longer(cols = age:duration, names_to = "factor", values_to = "value") %>% 
+    ggplot(aes(x = value, y = totalcost,color = factor))+
+    geom_point(alpha = 0.2)+
+    geom_smooth(method = "lm",color = "darkblue",lwd = 0.2,se = T)+
+    #scale_y_continuous(limits = c(0,100))+ ??? limits
+    facet_grid(factor~.) +
+    labs(title = "Simple Linear Relationship plot between predictors and total cost")
+        
 ```
+
+what is the main outcome, main predictor and other important covariates.
+
+In this dataset, the main outcome is `total cost`, which is the total cost (in dollars) of patients diagnosed with heart disease, the main predictor is `ERvisits`, which is the number of emergency room visits for every observation. The possible important predictor might includes complications, drugs and interventions.
+
+## distribution of total cost
+
+```{r}
+hd %>% 
+    ggplot(aes(x = totalcost)) +
+    geom_density(fill = "lightblue", color = "blue") +
+    labs(title = "Original distribution for total cost")
+hd %>% 
+    ggplot(aes(x = log(totalcost+1))) +
+    geom_density(fill = "lightblue", color = "blue") +
+    labs(title = "Distribution for log transformation of total cost")
+
+```
+
+## c)
+
+```{r}
+hd = hd %>%
+    mutate(comp_bin = factor(ifelse(complications == 0, 0, 1))) %>% 
+    select(id,totalcost,age,gender,interventions,drugs,ERvisits,complications,comp_bin,comorbidities,duration)
+```
+
+## d)
+
+```{r}
+hd = hd %>% 
+    mutate(log_totalcost = log(totalcost+1))
+sim_reg <- lm(formula = log_totalcost~ERvisits,data = hd)
+summary(sim_reg)
+hd %>% 
+    ggplot(aes(x = ERvisits, y = log_totalcost))+
+    geom_point(color = "light blue")+
+    geom_smooth(method = "lm") + 
+    labs(title = "Simple linear regression between totalcost and ERvists")
+```
+
+
+Interpretation:
+
+With extremely low p-value, we reject the null hypothesis that there isn't a linear relationship between total cost and number of emergency visits. The intercept represents the expected value of (total cost + 1) after log transformation at the baseline, in which case number of emergency visits equals to 0; The slope means that when one visit increases, the estimated value of (total cost + 1) after log transformation will increase 0.22529 on average. 
+
+## e)
+
+```{r}
+multi_reg_1 <- lm(log_totalcost~comp_bin+ERvisits,data = hd)
+summary(multi_reg_1)
+
+```
+
+
+### counfounder?
+
+When add comp_bin into the model, the coefficient of ERvisits decrease from 0.22529 to 0.20295, the decrease rate is approximately 10%, so binary complication variable is a counfounder of association between number of emergency visits and total cost.
+
+### effect modifier test
+
+```{r}
+lm(log_totalcost~factor(comp_bin)+ERvisits+factor(comp_bin)*ERvisits,data = hd) %>% summary()
+lm(log_totalcost~factor(comp_bin)*ERvisits,data = hd) %>% summary()
+
+hd %>% 
+    ggplot(aes(x = ERvisits, y = totalcost,color = comp_bin))+
+    geom_point(alpha = 0.5)+
+    geom_smooth(method = "lm",se = F)
+```
+
+Showing in the plot, the slope of ERvisits is change slightly in differnt categories of comp_bin, which meand there might be interactions between comp_bin and ERvistis. When itegrating interaction term(comp_bin\*ERvisits) in to the model,we fail to reject the null hypothesis that the coeffeicient of comp_bin\*ERvisits term is 0, so the interaction effect is not significant. In this way, the binary complication variable is a confounder but not an modifier to the association between number of emergency visits and total cost.
+
+### include binary complication variable?
+
+global test for binary complication variable:
+
+```{r}
+anova(multi_reg_1)
+```
+
+As seen in global anova test, total cost of different categories of binary complication variable is significantly differenct, and it is also a confounder that should be considered when finding the relationship between number of emergency visits and total cost.
+
+## f)
+```{r}
+multi_reg_2 <- lm(formula = log_totalcost~age+gender+ERvisits+comp_bin+duration,data = hd)
+summary(multi_reg_2)
+```
+
+```{r}
+anova(sim_reg,multi_reg_2)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
