@@ -7,7 +7,7 @@ output: html_document
 
 
 
-```{r}
+```{r, include = F}
 library(tidyverse)
 library(readxl)
 library(arsenal)
@@ -32,7 +32,7 @@ theme_set(theme_minimal() + theme(legend.position = "bottom"))
 
 ```
 
-# Problem 2
+# Problem 3
 
 ## a) Fit a regression model for the nonhuman data 
 
@@ -45,17 +45,15 @@ brain = read_excel("data/Brain.xlsx") %>%
 non_human_reg <- brain %>% 
     filter(species != "Homo sapiens") %>% 
     lm(glia_neuron_ratio~ln_brain_mass,data = .)
+summary(non_human_reg)
 ```
 
+As shown in the summary table, the coefficient of brain mass after log transformation is significantly different from 0, with $R^2$ equal to 62.74%.
 
 ## b) Predict human brain mass using the model
 
 ```{r}
-summary(non_human_reg)
-anova(non_human_reg)
 broom::tidy(non_human_reg)
-brain %>% add_predictions(non_human_reg) %>% .[1,]
-
 ```
 
 The relationship between glia-neuron ratio (denoted as $GR$) and brain mass (denoted as $BM$) is:
@@ -68,29 +66,25 @@ $$GR=0.16370+0.18113\times7.22=1.471$$
 
 ## c) CI or PI?
 
-
-
-
-In this model, Homo sapiens species provides a new value for the model which beyond the original range of glia-neuron ratio, which means that in this way, the prediction interval is more plausible because the expected prediction can only capture the information of the given data, which is narrower than prediction interval.
+In this model, Homo sapiens species provides a `new value` for the model which beyond the original range of glia-neuron ratio, which means that in this way, the prediction interval is more plausible because the expected prediction can only capture the information of the given data, which is narrower than prediction interval.
 
 ## d)
 
 ```{r}
 newdata = brain %>% filter(species == "Homo sapiens")
 interval = as.tibble(
-    rbind(
         predict(non_human_reg, newdata, interval="predict"),
-        predict(non_human_reg, newdata, interval="confidence")
-    )
 ) %>% 
-    mutate(category = c("predict","confidence"))
-knitr::kable(interval)
+    mutate(category = c("predict"))
+knitr::kable(interval,caption = "Prediction interval of glia_neuron ratio of Homo sapiens.")
 
 brain %>% filter(species!="Homo sapiens") %>% select(glia_neuron_ratio) %>% summary
 ## Unfinish formula typing
 ```
 
 As shown above, the prediction interval for Homo sapiens do not include the mean value of other species, thus, there are significant difference between the glia_neuron ratio of human and non_human groups
+
+## 加公式？？
 $$se(\widehat{\beta_0}+\widehat{\beta_1}X_h)=\sqrt{MSE\left\{\frac1n+\frac{{(X_h-\overline X)}^2}{{\displaystyle\sum_{i=1}^n}{(X_i-\overline X)}^2}+1\right\}}=\sqrt{0.02885\times(\frac{1}{17}+\frac{(7.22-\overline{X})}{{\displaystyle\sum_{i=1}^n}{(X_i-\overline X)}^2})+1}$$
 
 ## d)
