@@ -14,6 +14,7 @@ library(arsenal)
 library(modelr)
 library(broom)
 library(viridis)
+library(patchwork)
 ```
 
 ```{r,include = F}
@@ -68,26 +69,29 @@ $$GR=0.16370+0.18113\times7.22=1.471$$
 
 In this model, Homo sapiens species provides a `new value` for the model which beyond the original range of glia-neuron ratio, which means that in this way, the prediction interval is more plausible because the expected prediction can only capture the information of the given data, which is narrower than prediction interval.
 
-## d)
+## d) Construct PI
 
-```{r}
+### Prediction interval of glia_neuron ratio of Homo sapiens.
+```{r,warning=FALSE}
 newdata = brain %>% filter(species == "Homo sapiens")
 interval = as.tibble(
         predict(non_human_reg, newdata, interval="predict"),
 ) %>% 
     mutate(category = c("predict"))
-knitr::kable(interval,caption = "Prediction interval of glia_neuron ratio of Homo sapiens.")
-
-brain %>% filter(species!="Homo sapiens") %>% select(glia_neuron_ratio) %>% summary
-## Unfinish formula typing
+knitr::kable(interval)
 ```
 
-As shown above, the prediction interval for Homo sapiens do not include the mean value of other species, thus, there are significant difference between the glia_neuron ratio of human and non_human groups
+### summary of the non-human species data.
+```{r,warning=FALSE}
+brain %>% filter(species!="Homo sapiens") %>% select(glia_neuron_ratio) %>% summary
+```
+
+As shown above, the mean value of other species isn't included in the prediction interval for Homo sapiens, thus, there are significant difference between the mean glia_neuron ratio of human and other non_human groups.
 
 ## 加公式？？
 $$se(\widehat{\beta_0}+\widehat{\beta_1}X_h)=\sqrt{MSE\left\{\frac1n+\frac{{(X_h-\overline X)}^2}{{\displaystyle\sum_{i=1}^n}{(X_i-\overline X)}^2}+1\right\}}=\sqrt{0.02885\times(\frac{1}{17}+\frac{(7.22-\overline{X})}{{\displaystyle\sum_{i=1}^n}{(X_i-\overline X)}^2})+1}$$
 
-## d)
+## e) other notions.
 
 1. As shown in the plot, the $ln(BM)$ for Homo sapiens exceeds the range of non_human species which fitted the model. In this case, the prediction of human beings from this model may not defensible enough.
 
@@ -97,7 +101,12 @@ $$se(\widehat{\beta_0}+\widehat{\beta_1}X_h)=\sqrt{MSE\left\{\frac1n+\frac{{(X_h
 ## a) Description
 
 ```{r}
-hd <- read_csv("data/HeartDisease.csv")
+hd <- 
+  read_csv("data/HeartDisease.csv") %>% 
+  mutate(
+    gender = factor(gender,levels = c(0,1), labels = c("female", "male"))
+  )
+  
 # Clean the output
 my_controls <- tableby.control(
   total = T,
@@ -109,7 +118,7 @@ my_controls <- tableby.control(
     range = "Min - Max"))
 
 # Descriptive table
-tab1 <- tableby( ~ totalcost+age+gender+interventions+drugs+ERvisits+complications+comorbidities+duration,
+tab1 <- tableby( gender~ totalcost+age+interventions+drugs+ERvisits+complications+comorbidities+duration,
                  data = hd, control = my_controls, total = FALSE)
 summary(tab1, title = "Descriptive statistics ", 
         text = T,  digits = 1) %>% 
@@ -118,47 +127,52 @@ summary(tab1, title = "Descriptive statistics ",
 # making plots to show relationships
 
 hd %>% 
-    pivot_longer(cols = age:duration, names_to = "factor", values_to = "value") %>% 
+    pivot_longer(cols = c(age,interventions,drugs,ERvisits,complications,comorbidities,duration), names_to = "factor", values_to = "value") %>% 
     ggplot(aes(x = value, y = totalcost,color = factor))+
     geom_point(alpha = 0.2)+
-    geom_smooth(method = "lm",color = "darkblue",lwd = 0.2,se = T)+
+    geom_smooth(method = "lm",color = "darkblue",lwd = 0.4,se = T)+
     #scale_y_continuous(limits = c(0,100))+ ??? limits
     facet_grid(factor~.) +
     labs(title = "Simple Linear Relationship plot between predictors and total cost")
         
 ```
 
-what is the main outcome, main predictor and other important covariates.
 
 In this dataset, the main outcome is `total cost`, which is the total cost (in dollars) of patients diagnosed with heart disease, the main predictor is `ERvisits`, which is the number of emergency room visits for every observation. The possible important predictor might includes complications, drugs and interventions.
 
 ## distribution of total cost
 
 ```{r}
-hd %>% 
+boxcox(lm(totalcost+1~ERvisits, data = hd))
+g1 <- hd %>% 
     ggplot(aes(x = totalcost)) +
     geom_density(fill = "lightblue", color = "blue") +
     labs(title = "Original distribution for total cost")
-hd %>% 
+
+g2 <- hd %>% 
     ggplot(aes(x = log(totalcost+1))) +
     geom_density(fill = "lightblue", color = "blue") +
     labs(title = "Distribution for log transformation of total cost")
 
+g1+g2
+
 ```
+
+Based on the results of Box-cox transformations, taking log transformation after adding 1 to the total cost makes the distribution approach normality.As shown above, after adding 1 (adjust for the 0 cases) and then take log transformation to the totalcost, the density plot plot shows a great symmetry.
 
 ## c)
 
 ```{r}
 hd = hd %>%
-    mutate(comp_bin = factor(ifelse(complications == 0, 0, 1))) %>% 
-    select(id,totalcost,age,gender,interventions,drugs,ERvisits,complications,comp_bin,comorbidities,duration)
+    mutate(
+      comp_bin = factor(ifelse(complications == 0, 0, 1)),
+      log_totalcost = log(totalcost+1)
+      ) 
 ```
 
 ## d)
 
 ```{r}
-hd = hd %>% 
-    mutate(log_totalcost = log(totalcost+1))
 sim_reg <- lm(formula = log_totalcost~ERvisits,data = hd)
 summary(sim_reg)
 hd %>% 
@@ -168,10 +182,11 @@ hd %>%
     labs(title = "Simple linear regression between totalcost and ERvists")
 ```
 
-
+Fitted model:
+$$Totalcost=5.52674+0.22529 \times ERvisits$$
 Interpretation:
 
-With extremely low p-value, we reject the null hypothesis that there isn't a linear relationship between total cost and number of emergency visits. The intercept represents the expected value of (total cost + 1) after log transformation at the baseline, in which case number of emergency visits equals to 0; The slope means that when one visit increases, the estimated value of (total cost + 1) after log transformation will increase 0.22529 on average. 
+With extremely low p-value, we reject the null hypothesis that there isn't a linear relationship between total cost and number of emergency visits. The intercept represents the expected value of (total cost + 1) after log transformation at the baseline, in which case number of emergency visits equals to 0; The slope means that when one visit increases, the estimated value of (total cost + 1) after log transformation will increase 0.22529 on average. Based on the regression results, the $R^2$ of this model is only 0.098, which is quite small, illustrating poor performance on predicting.
 
 ## e)
 
@@ -216,8 +231,29 @@ multi_reg_2 <- lm(formula = log_totalcost~age+gender+ERvisits+comp_bin+duration,
 summary(multi_reg_2)
 ```
 
+
+Small model:
+
+$$Totalcost=\beta_0+\beta_1 \times ERvisits$$
+large model
+$$Totalcost=\beta_0+\beta_1 \times ERvisits + \beta_3 \times age + \beta_3 \times gender +\beta_5 \times duration$$
+
+
+* Hypothesis:
+
+$$H_0: \beta_3 = \beta_4 = \beta_5 = 0$$
+$$H_1: \beta_3 \ne 0or\beta_4\ne 0or\beta_5 \ne 0$$
+* Test statistics:
+
+$$F_{test}=\frac{(SSE_l-SSE_s)/(df_l-df_s)}{\displaystyle\frac{SSE_l}{df_l}}=\frac{(2062.20-2429.27)/(782-785)}{\displaystyle\frac{2062.20}{782}} = 46.399 \overset{H_0}\sim F_{3,782}$$
+ 
+* results
+$F_{test}>F_{3,782,0.975}= 2.61629$, reject the null hypothesis, which means at least one coeeficient of age, gender and duration isn't equal to 1, thus we choose the large model.
+
 ```{r}
-anova(sim_reg,multi_reg_2)
+anova(multi_reg_1,multi_reg_2)
+anova(multi_reg_1)
+anova(multi_reg_2)
 ```
 
 
