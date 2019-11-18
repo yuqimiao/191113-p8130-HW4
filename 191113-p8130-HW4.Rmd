@@ -2,7 +2,7 @@
 title: "Untitled"
 author: "Yuqi Miao"
 date: "11/13/2019"
-output: html_document
+output: word_document
 ---
 
 
@@ -15,6 +15,7 @@ library(modelr)
 library(broom)
 library(viridis)
 library(patchwork)
+library(HH)
 ```
 
 ```{r,include = F}
@@ -49,7 +50,7 @@ non_human_reg <- brain %>%
 summary(non_human_reg)
 ```
 
-As shown in the summary table, the coefficient of brain mass after log transformation is significantly different from 0, with $R^2$ equal to 62.74%.
+As shown in the summary table, the coefficient of brain mass after log transformation is significantly different from 0, with adjusted $R^2$ equal to 60.25%.
 
 ## b) Predict human brain mass using the model
 
@@ -60,10 +61,10 @@ broom::tidy(non_human_reg)
 The relationship between glia-neuron ratio (denoted as $GR$) and brain mass (denoted as $BM$) is:
 
 
-$$GR=0.16370+0.18113\times\ln(BM)$$
+$$\widehat{GR}=0.16370+0.18113\times\ln(BM)$$
 Thus using this relationship, the glia-neuron ratio of Homo sapiens should be:
 
-$$GR=0.16370+0.18113\times7.22=1.471$$
+$$\widehat{GR}=0.16370+0.18113\times7.22=1.471$$
 
 ## c) CI or PI?
 
@@ -83,12 +84,11 @@ knitr::kable(interval)
 
 ### summary of the non-human species data.
 ```{r,warning=FALSE}
-brain %>% filter(species!="Homo sapiens") %>% select(glia_neuron_ratio) %>% summary
+brain %>% filter(species!="Homo sapiens") %>% dplyr::select(glia_neuron_ratio) %>% summary
 ```
 
-As shown above, the mean value of other species isn't included in the prediction interval for Homo sapiens, thus, there are significant difference between the mean glia_neuron ratio of human and other non_human groups.
+As shown above, although the mean value of other species smaller than for Homo sapiens, the true value of human brain after log transformation falls in the prediction interval of non-human distribution, thus human brain do not have excessive glia-neuron ratio for its mass.
 
-## 加公式？？
 $$se(\widehat{\beta_0}+\widehat{\beta_1}X_h)=\sqrt{MSE\left\{\frac1n+\frac{{(X_h-\overline X)}^2}{{\displaystyle\sum_{i=1}^n}{(X_i-\overline X)}^2}+1\right\}}=\sqrt{0.02885\times(\frac{1}{17}+\frac{(7.22-\overline{X})}{{\displaystyle\sum_{i=1}^n}{(X_i-\overline X)}^2})+1}$$
 
 ## e) other notions.
@@ -138,29 +138,33 @@ hd %>%
 ```
 
 
-In this dataset, the main outcome is `total cost`, which is the total cost (in dollars) of patients diagnosed with heart disease, the main predictor is `ERvisits`, which is the number of emergency room visits for every observation. The possible important predictor might includes complications, drugs and interventions.
+In this dataset, the main outcome is `total cost`, which is the total cost (in dollars) of patients diagnosed with heart disease, the main predictor is `ERvisits`, which is the number of emergency room visits for every observation. Other important covariate including the age and gender of the subscriber(indicated by `age`,`gender`), number of complications that arouse during treatment(indicated by `complications`) and duration of treatment condition(indicated by `duration`). According to the plot above, The possible important predictors are likely to be `complications`, `drugs` and `ERvisits` and `interventions`.
 
 ## distribution of total cost
 
 ```{r}
+hd %>% filter(totalcost == 0)
 boxcox(lm(totalcost+1~ERvisits, data = hd))
 g1 <- hd %>% 
     ggplot(aes(x = totalcost)) +
-    geom_density(fill = "lightblue", color = "blue") +
-    labs(title = "Original distribution for total cost")
+    geom_density(fill = "lightblue", color = "blue")
+
+
+g3 <- hd %>% 
+    ggplot(aes(x = log(totalcost+1/6))) +
+    geom_density(fill = "lightblue", color = "blue") 
 
 g2 <- hd %>% 
-    ggplot(aes(x = log(totalcost+1))) +
-    geom_density(fill = "lightblue", color = "blue") +
-    labs(title = "Distribution for log transformation of total cost")
+    ggplot(aes(x = log(totalcost))) +
+    geom_density(fill = "lightblue", color = "blue") 
 
-g1+g2
+g1+g2+g3
 
 ```
 
-Based on the results of Box-cox transformations, taking log transformation after adding 1 to the total cost makes the distribution approach normality.As shown above, after adding 1 (adjust for the 0 cases) and then take log transformation to the totalcost, the density plot plot shows a great symmetry.
+As shown above, because there are 3 0s in the data, when we perform log trasformation, these data would go to inf. So we add 1 to the totalcost variable to make it meaningful. Based on the results of Box-cox transformations, taking log transformation after adding 1 to the total cost makes the distribution approach normality.As shown above, after adding 1 (adjust for the 0 cases) and then take log transformation to the totalcost, the density plot plot shows a great symmetry.
 
-## c)
+## c) add a binary variable.
 
 ```{r}
 hd = hd %>%
@@ -182,16 +186,28 @@ hd %>%
     labs(title = "Simple linear regression between totalcost and ERvists")
 ```
 
-Fitted model:
-$$Totalcost=5.52674+0.22529 \times ERvisits$$
-Interpretation:
+### Fitted model:
+$$\widehat{Totalcost}=5.52674+0.22529 \times ERvisits$$
+### significance test:
+* Hypothesis:
+
+$$H_0: \beta_1 = 0$$
+$$H_1: \beta_1 \ne 0$$
+* Test statistics:
+
+$$t_{test}=\frac{\beta_1}{se(\beta_1)}=\frac{0.22529}{0.02432 } = 9.26 \overset{H_0}\sim t_{786}$$
+ 
+* results
+$t_{test}>t_{786,0.975}= 1.96$, reject the null hypothesis, which means that the coefficient of number of emergency room visits is significantly different different from 0.
+
+### Interpretation:
 
 With extremely low p-value, we reject the null hypothesis that there isn't a linear relationship between total cost and number of emergency visits. The intercept represents the expected value of (total cost + 1) after log transformation at the baseline, in which case number of emergency visits equals to 0; The slope means that when one visit increases, the estimated value of (total cost + 1) after log transformation will increase 0.22529 on average. Based on the regression results, the $R^2$ of this model is only 0.098, which is quite small, illustrating poor performance on predicting.
 
 ## e)
 
 ```{r}
-multi_reg_1 <- lm(log_totalcost~comp_bin+ERvisits,data = hd)
+multi_reg_1 <- lm(log_totalcost~ERvisits+comp_bin,data = hd)
 summary(multi_reg_1)
 
 ```
@@ -217,7 +233,7 @@ Showing in the plot, the slope of ERvisits is change slightly in differnt catego
 
 ### include binary complication variable?
 
-global test for binary complication variable:
+#### global test for binary complication variable:
 
 ```{r}
 anova(multi_reg_1)
@@ -225,38 +241,70 @@ anova(multi_reg_1)
 
 As seen in global anova test, total cost of different categories of binary complication variable is significantly differenct, and it is also a confounder that should be considered when finding the relationship between number of emergency visits and total cost.
 
-## f)
+#### F-test for the parameter
+
 ```{r}
-multi_reg_2 <- lm(formula = log_totalcost~age+gender+ERvisits+comp_bin+duration,data = hd)
-summary(multi_reg_2)
+anova(sim_reg,multi_reg_1)
 ```
 
 
 Small model:
 
-$$Totalcost=\beta_0+\beta_1 \times ERvisits$$
+$$\widehat{Totalcost}=\beta_0+\beta_1 \times ERvisits$$
 large model
-$$Totalcost=\beta_0+\beta_1 \times ERvisits + \beta_3 \times age + \beta_3 \times gender +\beta_5 \times duration$$
+$$\widehat{Totalcost}=\beta_0+\beta_1 \times ERvisits + \beta_2 \times comp\_bin$$
 
 
 * Hypothesis:
 
-$$H_0: \beta_3 = \beta_4 = \beta_5 = 0$$
-$$H_1: \beta_3 \ne 0or\beta_4\ne 0or\beta_5 \ne 0$$
+$$H_0: \beta_2 = 0$$
+$$H_1: \beta_2 \ne 0$$
 * Test statistics:
 
-$$F_{test}=\frac{(SSE_l-SSE_s)/(df_l-df_s)}{\displaystyle\frac{SSE_l}{df_l}}=\frac{(2062.20-2429.27)/(782-785)}{\displaystyle\frac{2062.20}{782}} = 46.399 \overset{H_0}\sim F_{3,782}$$
+$$F_{test}=\frac{(SSE_l-SSE_s)/(df_l-df_s)}{\displaystyle\frac{SSE_l}{df_l}}=\frac{(2429.3-2544.8)/(785-786)}{\displaystyle\frac{2544.82}{786}} = 37.339 \overset{H_0}\sim F_{1,786}$$
  
 * results
-$F_{test}>F_{3,782,0.975}= 2.61629$, reject the null hypothesis, which means at least one coeeficient of age, gender and duration isn't equal to 1, thus we choose the large model.
+$F_{test}>F_{1,786,0.975}= 5.04$, reject the null hypothesis, which means at least one coeeficient of age, gender and duration isn't equal to 1, thus we choose the large model.
+
+Above all, we should take the compication bianary variable into the model.
+
+## f)
+
+Small model:
+
+$$\widehat{Totalcost}=\beta_0+\beta_1 \times ERvisits$$
+large model
+$$\widehat{Totalcost}=\beta_0+\beta_1 \times ERvisits + \beta_2 \times age + \beta_3 \times gender +\beta_4 \times duration+\beta_5 \times comp\_bin$$
 
 ```{r}
-anova(multi_reg_1,multi_reg_2)
-anova(multi_reg_1)
+multi_reg_2 <- lm(formula = log_totalcost~ERvisits+age+gender+duration+comp_bin,data = hd)
+summary(multi_reg_2)
 anova(multi_reg_2)
 ```
+As shown in the summary table of regression, the adjusted $R^2$ is 0.2647, and the fitted model is
 
+$$\widehat{Totalcost}=5.94 + 0.17 \times ERvisits -0.02 \times age - 0.21 \times gender +0.01 \times duration+1.50 \times comp\_bin$$
 
+Shown in the global anova table of this linear model, the age and gender are not showing significantly different partial variance, but ERvisits, duration, and comp_bin show significant partial variance.
+
+* Hypothesis:
+
+$$H_0:\beta_2 = \beta_3 = \beta_4 = \beta_5 = 0$$
+$$H_1: \beta_2 \ne 0\;or\;\beta_3 \ne 0\;or\;\beta_4\ne 0\;or\;\beta_5 \ne 0$$
+* Test statistics:
+
+$$F_{test}=\frac{(SSE_l-SSE_s)/(df_l-df_s)}{\displaystyle\frac{SSE_l}{df_l}}=\frac{(2062.20-2544.82)/(782-786)}{\displaystyle\frac{2544.82}{786}} = 45.753 \overset{H_0}\sim F_{4,786}$$
+ 
+* results
+$F_{test}>F_{4,786,0.975}= 2.802079$, reject the null hypothesis, which means at least one coeeficient of age, gender and duration isn't equal to 1, thus we choose the large model.
+
+```{r}
+anova(sim_reg,multi_reg_2)
+summary(sim_reg)
+summary(multi_reg_2)
+```
+
+According to the regression results as above, the adjusted $R^2$ for large model is 0.26, which is bigger than the small model. In this way, by adjusting other covariates, the model performs better than just considering number of emergency room visits as predictor. As shown above, we choose the large model.
 
 
 
